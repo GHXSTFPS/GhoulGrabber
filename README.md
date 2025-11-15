@@ -18,8 +18,11 @@
 ⚡ Features
 
 ✔ Collects artifacts from **Chrome, Edge, Firefox, Brave, and Opera
+
 ✔ Copies from all profiles
-✔ Copies shit from the browser
+
+✔ Copies Shit from da browsa
+
 - **History**  
 - **Cookies**  
 - **Bookmarks**  
