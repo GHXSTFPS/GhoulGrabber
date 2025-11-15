@@ -1,3 +1,4 @@
+```
   .,-:::::/  ::                        `::.:::::::-.                                
 ,;;-'````'   ;;;                        ;;; ;;,   `';,                              
 [[[   [[[[[[/[[[[cc,,.  ,ccc,   ,c  ,   [[[ `[[     [[ ,c  ,   [ccc, ,cccc,         
@@ -7,6 +8,7 @@
                                                                             MMMP    
                                                                             ###     
                                                                             "##b    
+                                                                            ```
 ***🧟‍♂️ GhoulDump***
 
 **GhoulDump is designed for **legitimate educational use only.**
