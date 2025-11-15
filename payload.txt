@@ -1,5 +1,4 @@
 #!/bin/bash
-# Browser Artifact Collector Payload (Lab-Safe)
 
 LED SETUP
 ATTACKMODE HID STORAGE
