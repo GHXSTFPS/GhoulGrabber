@@ -7,8 +7,8 @@
    `'YMUP"YMMMMM    YMM "YUMMP  "YUM" MP MM; MMMMP"`   "YUM" MPMMM  M'  "MMMMMoooMM'
                                                                             MMMP    
                                                                             ###     
-                                                                            "##b    
-                                                                            ```
+                                                                            "##b
+```
 ***🧟‍♂️ GhoulDump***
 
 **GhoulDump is designed for **legitimate educational use only.**
