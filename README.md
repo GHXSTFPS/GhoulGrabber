@@ -9,11 +9,11 @@
                                                                             ###     
                                                                             "##b
 ```
-🧟‍♂️** GhoulDump**
+🧟‍♂️ GhoulDump
 
 *This script is very simple but works out of the box without any tweaking, should you want to feel free to make a contribute and I'll look it over theres a ton this could still support but I just tried to keep it simple and stupid*
 
-**GhoulDump is designed for **legitimate educational use only.**
+GhoulDump is designed for **legitimate educational use only.
 
 ⚡ Features
 
