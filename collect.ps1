@@ -35,18 +35,25 @@ function Copy-Safe {
     }
 
     try {
+    if (Test-Path $source -PathType Container) {
+        # It's a folder — copy recursively
+        Copy-Item -Path $source -Destination $dest -Recurse -Force -ErrorAction Stop
+    }
+    else {
+        # It's a file — normal copy
         Copy-Item -Path $source -Destination $dest -Force -ErrorAction Stop
-        Write-Output "[+] Copied: $source"
-        return
-    }
-    catch {
-        Write-Output "[-] Normal copy failed for $source"
     }
 
+    Write-Output "[+] Copied: $source"
+    return
+}
+catch {
+    Write-Output "[-] Normal copy failed for $source"
+}
     # --- Shadow Copy Fallback ---
-    Write-Output "[*] Attempting shadow copy..."
+Write-Output "[*] Attempting shadow copy..."
 
-    $shadowScript = @"
+$shadowScript = @"
 SET CONTEXT CLIENT ACCESSIBLE
 BEGIN BACKUP
 ADD VOLUME C: ALIAS vol1
@@ -54,25 +61,32 @@ CREATE
 END BACKUP
 "@
 
-    $shadowFile = "$env:TEMP\shadow.txt"
-    $shadowScript | Out-File $shadowFile -Encoding ASCII
+$shadowFile = "$env:TEMP\shadow.txt"
+$shadowScript | Out-File $shadowFile -Encoding ASCII
 
-    diskshadow /s $shadowFile | Out-Null
+diskshadow /s $shadowFile | Out-Null
 
-    # Locate created shadow copy
-    $shadow = (vssadmin list shadows | Select-String "Shadow Copy Volume:").Line
-    if ($shadow -match "Shadow Copy Volume:\s+(.*)$") {
-        $shadowPath = $matches[1].Trim()
-        $shadowSource = $source.Replace("C:", $shadowPath)
+# Locate created shadow copy
+$shadow = (vssadmin list shadows | Select-String "Shadow Copy Volume:").Line
+if ($shadow -match "Shadow Copy Volume:\s+(.*)$") {
+    $shadowPath = $matches[1].Trim()
+    $shadowSource = $source.Replace("C:", $shadowPath)
 
-        try {
+    try {
+        if (Test-Path $shadowSource -PathType Container) {
+            Copy-Item $shadowSource $dest -Recurse -Force
+        }
+        else {
             Copy-Item $shadowSource $dest -Force
-            Write-Output "[+] Shadow copy successful for $source"
         }
-        catch {
-            Write-Output "[-] Shadow copy failed for $source"
-        }
+
+        Write-Output "[+] Shadow copy successful for $source"
     }
+    catch {
+        Write-Output "[-] Shadow copy failed for $source"
+    }
+}
+
 }
 
 
